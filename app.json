@@ -16,37 +16,13 @@
   "logo": "https://avatars2.githubusercontent.com/u/75073550?v=4",
   "success_url": "/#/",
   "env": {
-    "ENVIRON_MODE": {
-      "description": "Don't change this.",
-      "value": "True"
+    "LIBDRIVE_CONFIG": {
+      "description": "Create this through the config generator: https://libdrive-config.netlify.app/",
+      "value": "{\r\n    \"access_token\": \"\",\r\n    \"account_list\": [],\r\n    \"auth\": true,\r\n    \"build_interval\": 360\r\n    \"category_list\": [],\r\n    \"client_id\": \"\",\r\n    \"client_secret\": \"\",\r\n    \"refresh_token\": \"\",\r\n    \"secret_key\": \"\",\r\n    \"signup\": false,\r\n    \"tmdb_api_key\": \"\",\r\n    \"token_expiry\": \"\",\r\n    \"transcoded\": false\r\n}"
     },
-    "account_list": {
-      "description": "A list of accounts used to access the app.",
-      "value": "[{'username': 'USERNAME_1', 'password': 'PASSWORD_1', 'auth': 'mxuGDZArVRMPOMJgvnYrznYhNatofvuA', 'pic': ''}, {'username': 'USERNAME_2', 'password': 'PASSWORD_2', 'auth': 'CPoJcfbKTTaEBuhUrmbAXaPmcRIXiscG', 'pic': ''}]"
-    },
-    "category_list": {
-      "description": "A list of libraries.",
-      "value": "[{'name': 'THIS CAN BE ANYTHING YOU WANT', 'type': 'movies OR tv', 'id': 'GOOGLE DRIVE FOLDER ID', 'driveId': 'GOOGLE DRIVE TEAMDRIVE ID'}, {'name': 'THIS CAN BE ANYTHING YOU WANT', 'type': 'movies OR tv', 'id': 'GOOGLE DRIVE FOLDER ID', 'driveId': 'GOOGLE DRIVE TEAMDRIVE ID'}]"
-    },
-    "client_id": {
-      "description": "The client ID made from your Google Developers API.",
-      "value": ""
-    },
-    "client_secret": {
-      "description": "The client secret made from your Google Developers API.",
-      "value": ""
-    },
-    "refresh_token": {
-      "description": "A refresh token from Google.",
-      "value": ""
-    },
-    "secret_key": {
-      "description": "A secret key for using the admin panel (make sure to remember it).",
-      "generator": "secret"
-    },
-    "tmdb_api_key": {
-      "description": "The API key given when making a TMDB developer account.",
-      "value": ""
+    "WEB_CONCURRENCY": {
+      "description": "Don't change this, leave the value as 1",
+      "value": "1"
     }
   },
   "image": "heroku/python",
