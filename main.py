@@ -23,27 +23,21 @@ import src.metadata
 
 colorama.init()
 print(
-    "====================================================\n\033[96m               libDrive - \033[92mv1.2.5\033[94m\n                   @eliasbenb\033[0m\n====================================================\n"
+    "====================================================\n\033[96m               libDrive - \033[92mv1.2.6\033[94m\n                   @eliasbenb\033[0m\n====================================================\n"
 )
 
 
 print("\033[91mREADING CONFIG...\033[0m")
 if os.getenv("LIBDRIVE_CONFIG"):
     config_str = os.getenv("LIBDRIVE_CONFIG")
-    dir_path = os.path.join(os.path.expanduser("~"), ".config", "libdrive")
-    if not os.path.exists(dir_path):
-        os.makedirs(dir_path)
-    with open(
-        os.path.join(dir_path, "config.json"),
-        "w+",
-    ) as w:
+    with open("config.json", "w+") as w:
         json.dump(obj=json.loads(config_str), fp=w, sort_keys=True, indent=4)
 config = src.config.readConfig()
 print("DONE.\n")
 
 print("\033[91mREADING METADATA...\033[0m")
 metadata = src.metadata.readMetadata(config)
-if os.getenv("LIBDRIVE_CLOUD"):
+if os.getenv("LIBDRIVE_CLOUD") and config.get("refresh_token"):
     config, drive = src.credentials.refreshCredentials(config)
     params = {
         "supportsAllDrives": True,
@@ -64,8 +58,7 @@ if os.getenv("LIBDRIVE_CLOUD"):
             status, done = downloader.next_chunk()
         config = json.loads(fh.getvalue())
         config, drive = src.credentials.refreshCredentials(config)
-        with open(config_file["name"], "w+") as w:
-            json.dump(config, w)
+        src.config.updateConfig(config)
     if metadata_file:
         request = drive.files().get_media(fileId=metadata_file["id"])
         fh = io.BytesIO()
@@ -153,7 +146,7 @@ def create_app():
 
 app = create_app()
 flask_cors.CORS(app)
-app.secret_key = config["secret_key"]
+app.secret_key = config.get("secret_key")
 
 
 @app.route("/", defaults={"path": ""})
@@ -460,6 +453,7 @@ def metadataAPI():
                 index += 1
         if id:
             tmp_metadata = src.metadata.jsonExtract(tmp_metadata, "id", id, False)
+            config, drive = src.credentials.refreshCredentials(config)
             if tmp_metadata:
                 tmp_metadata["children"] = []
                 if (
@@ -534,8 +528,8 @@ def downloadRedirectAPI(name):
     session["url"] = "https://www.googleapis.com/drive/v3/files/%s?alt=media" % (id)
     if itag and itag != "" and config.get("transcoded") == True:
         req = requests.get(
-            "https://docs.google.com/get_video_info?docid=%s" % (id),
-            headers={"Authorization": "Bearer %s" % config.get("access_token")},
+            "https://drive.google.com/get_video_info?docid=%s" % (id),
+            headers={"Authorization": "Bearer %s" % (config.get("access_token"))},
         )
         parsed = urllib.parse.parse_qs(urllib.parse.unquote(req.text))
         if parsed.get("status") == ["ok"]:
@@ -573,7 +567,6 @@ def downloadAPI(name):
                 yield chunk
 
     a = flask.request.args.get("a")
-    id = flask.request.args.get("id")
     session = json.loads(
         base64.b64decode(flask.request.args.get("session").encode("ascii")).decode(
             "ascii"
@@ -617,7 +610,7 @@ def downloadAPI(name):
         else:
             resp = requests.request(
                 method=flask.request.method,
-                url="https://www.googleapis.com/drive/v3/files/%s?alt=media" % (id),
+                url=session.get("url"),
                 headers=headers,
                 data=flask.request.get_data(),
                 cookies=flask.request.cookies,
@@ -668,29 +661,27 @@ def stream_mapAPI():
     ):
         stream_list = [
             {
-                "size": 4320,
-                "src": "%s/api/v1/redirectdownload/%s?a=%s&id=%s"
+                "name": "Original",
+                "url": "%s/api/v1/redirectdownload/%s?a=%s&id=%s"
                 % (server, name, a, id),
+                "type": "normal",
             }
         ]
         if config.get("transcoded") == True:
             req = requests.get(
-                "https://docs.google.com/get_video_info?authuser=&docid=%s&access_token=%s"
-                % (id, config["access_token"]),
-                headers={"Authorization": "Bearer %s" % config["access_token"]},
+                "https://drive.google.com/get_video_info?docid=%s" % (id),
+                headers={"Authorization": "Bearer %s" % (config.get("access_token"))},
             )
             parsed = urllib.parse.parse_qs(urllib.parse.unquote(req.text))
-            qualities = [4320, 2880, 2160, 1440, 1080, 720, 576, 480, 360, 240]
             if parsed.get("status") == ["ok"]:
                 for fmt in parsed["fmt_list"][0].split(","):
                     fmt_data = fmt.split("/")
-                    fmt_resoltion = [int(x) for x in fmt_data[1].split("x")]
-                    quality = min(qualities, key=lambda x: abs(x - min(fmt_resoltion)))
                     stream_list.append(
                         {
-                            "size": quality,
-                            "src": "%s/api/v1/redirectdownload/%s?a=%s&id=%s&itag=%s"
+                            "name": fmt_data[1],
+                            "url": "%s/api/v1/redirectdownload/%s?a=%s&id=%s&itag=%s"
                             % (server, name, a, id, fmt_data[0]),
+                            "type": "auto",
                         }
                     )
                 return flask.jsonify(
@@ -730,7 +721,7 @@ def configAPI():
     config = src.config.readConfig()
     if flask.request.method == "GET":
         secret = flask.request.args.get("secret")
-        if secret == config["secret_key"]:
+        if secret == config.get("secret_key"):
             return flask.jsonify(config), 200
         else:
             return (
@@ -748,10 +739,14 @@ def configAPI():
         secret = flask.request.args.get("secret")
         if secret == None:
             secret = ""
-        if secret == config["secret_key"]:
+        if secret == config.get("secret_key"):
             data = flask.request.json
             data["token_expiry"] = str(datetime.datetime.utcnow())
-            src.config.updateConfig(data)
+            if data.get("category_list") != config.get("category_list"):
+                src.config.updateConfig(data)
+                threaded_metadata()
+            else:
+                src.config.updateConfig(data)
             return (
                 flask.jsonify(
                     {
@@ -845,6 +840,7 @@ def imageAPI(image_type):
         )
     elif image_type == "thumbnail":
         id = flask.request.args.get("id")
+        config, drive = src.credentials.refreshCredentials(src.config.readConfig())
         params = {
             "fileId": id,
             "fields": "thumbnailLink",
